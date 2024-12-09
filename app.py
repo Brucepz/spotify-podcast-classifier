@@ -12,6 +12,7 @@ import pickle
 import numpy as np
 import re
 from sklearn.metrics.pairwise import cosine_similarity
+import os
 # Load SpaCy model
 nlp = spacy.load("en_core_web_sm")
 
@@ -25,8 +26,20 @@ with open("lda_vectorizer.pkl", "rb") as f:
 with open("lda_model.pkl", "rb") as f:
     lda = pickle.load(f)
 
-# Load the preprocessed dataset
-df = pd.read_csv("Results.csv")
+
+# 读取分割文件并合并
+def load_split_results(directory):
+    all_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.startswith("Results_part_")]
+    all_files.sort()  # 按顺序读取
+    df_list = [pd.read_csv(file) for file in all_files]
+    full_df = pd.concat(df_list, ignore_index=True)
+    return full_df
+
+# 加载分割数据
+split_results_dir = "split_results"
+df = load_split_results(split_results_dir)
+
+
 tfidf_matrix = np.array([list(map(float, row.split(','))) for row in df['TFIDF_Matrix']])
 lda_distribution = np.array([list(map(float, row.split(','))) for row in df['LDA_Distribution']])
 
