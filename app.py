@@ -4,6 +4,7 @@ import spacy
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 from wordcloud import WordCloud
+from configparser import ConfigParser  # 替代 SafeConfigParser
 import matplotlib.pyplot as plt
 import base64
 
