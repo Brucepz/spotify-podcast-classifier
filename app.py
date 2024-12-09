@@ -14,7 +14,15 @@ import re
 from sklearn.metrics.pairwise import cosine_similarity
 import os
 # Load SpaCy model
-nlp = spacy.load("en_core_web_sm")
+from spacy.cli import download
+
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    # 如果模型不存在，则下载并加载
+    download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
+
 
 # Load pre-trained models and vectorizers
 with open("tfidf_vectorizer.pkl", "rb") as f:
@@ -183,7 +191,13 @@ def find_similar_podcast_tfd(tfd_result, token):
 
 
 with st.container():
-    col1, col2 = st.columns([1, 6])  # 调整列比例
+    # 左侧输入框部分
+    col1, col2 = st.columns([1, 4])  # 调整列比例
+    with col1:
+        # 把大标题移到输入框上方
+        st.title("Spotify Podcast Recommend")
+        st.write("Analyzing podcast and recommending similar content...")
+
     with col1:
         st.header("Inputs")
         token = get_spotify_token()
@@ -212,12 +226,9 @@ with st.container():
             st.error("Failed to authenticate with Spotify API.")
             selected_podcast_data = None
 
-    # Right Panel for Title and Outputs
+    # 右侧分析部分
     with col2:
-        st.title("Spotify Podcast Analysis & Recommendations")
         if selected_podcast_data:
-            st.write("Analyzing podcast and recommending similar content...")
-
             episodes = get_episodes(selected_podcast_data["id"], token)
             if not episodes:
                 st.error(f"No episodes found for podcast '{selected_podcast_data['name']}'.")
@@ -230,7 +241,7 @@ with st.container():
                 total_duration_seconds = episode['duration_ms'] // 1000  # Convert milliseconds to seconds
 
                 # 调用推荐函数
-                recommendations = recommend_podcast(description, tfidf_matrix, lda_distribution, df)   #TODO
+                recommendations = recommend_podcast(description, tfidf_matrix, lda_distribution, df)   # TODO
 
                 # Convert duration to minutes and seconds
                 minutes = total_duration_seconds // 60
@@ -238,46 +249,45 @@ with st.container():
                 duration = f"{minutes} minutes and {seconds} seconds"
 
                 # 示例 LDA 和 TFD 分析结果
-                lda_result = recommendations['LDA Recommendation']    #TODO
+                lda_result = recommendations['LDA Recommendation']    # TODO
                 tfd_result = recommendations['TF-IDF Recommendation']
 
                 # 分别推荐最相似的 Podcast
-                lda_recommendation = find_similar_podcast_lda(lda_result, token)     
+                lda_recommendation = find_similar_podcast_lda(lda_result, token)
                 tfd_recommendation = find_similar_podcast_tfd(tfd_result, token)
-      
-                # 添加选项卡显示 LDA 和 TFD 分析
-                tabs = st.tabs(["LDA Analysis", "TFD Analysis"])
 
+                lda_totaldurationsecond = lda_recommendation['duration_ms'] // 1000
+                lda_min = lda_totaldurationsecond // 60
+                lda_sec = lda_totaldurationsecond % 60
+                lda_duration = f"{lda_min} minutes and {lda_sec} seconds"
+
+                tfd_totaldurationsecond = tfd_recommendation['duration_ms'] // 1000
+                tfd_min = tfd_totaldurationsecond // 60
+                tfd_sec = tfd_totaldurationsecond % 60
+                tfd_duration = f"{tfd_min} minutes and {tfd_sec} seconds"
+
+                # 在现有标题上方显示 LDA 分析内容
+                st.header("Selected Podcast")
+                st.subheader("Infomation:")
+                st.write(f"**Analyzed Episode**: {name}")
+                st.write(f"**Duration**: {duration}")
+                st.write(f"**Description**: {description}")
+
+                # 推荐 Podcast (LDA)
+                st.header("Recommended Podcast by LDA")
+                st.write(f"**Name**: {lda_recommendation['name']}")
+                st.write(f"**Release Date**: {lda_recommendation['release_date']}")
+                st.write(f"**Duration**: {lda_duration}")
+                st.write(f"**Description**: {lda_recommendation['description']}")
+                st.write(f"**Link**: https://open.spotify.com/episode/{lda_result}")
+
+                # 添加选项卡显示 TFD 分析
+                tabs = st.tabs(["TFD Analysis"])
                 with tabs[0]:
-                    st.header("LDA Analysis")
-                    st.write("LDA analysis results will be displayed here.")
-                    st.write(f"**Analyzed Episode**: {name}")
-                    st.write(f"**Duration**: {duration}")
-                    
-                    st.write(f"**Description**: {description}")
-                    #能否加上podcast name？
-
-                    # 推荐 Podcast (LDA)
-                    st.subheader("Recommended Podcast by LDA")
-                    st.write(f"**Name**: {lda_recommendation['name']}")
-            #        st.write(f"**Publisher**: {lda_recommendation['publisher']}")
-                    st.write(f"**Release Date**: {lda_recommendation['release_date']}")
-                    st.write(f"**Duration**: {lda_recommendation['duration_ms']}")  
-                    st.write(f"**Description**: {lda_recommendation['description']}")
-                    st.write(f"**Link**: https://open.spotify.com/episode/{lda_result}")
-
-                with tabs[1]:
-                    st.header("TFD Analysis")
-                    st.write("TFD analysis results will be displayed here.")
-                    st.write(f"**Analyzed Podcast**: {name}")
-                    st.write(f"**Duration**: {duration}")
-                    st.write(f"**Description**: {description}")
-
                     # 推荐 Podcast (TFD)
-                    st.subheader("Recommended Podcast by TFD")
+                    st.header("Recommended Podcast by TFD")
                     st.write(f"**Name**: {tfd_recommendation['name']}")
-                #    st.write(f"**Publisher**: {tfd_recommendation['publisher']}")
                     st.write(f"**Release Date**: {tfd_recommendation['release_date']}")
-                    st.write(f"**Duration**: {tfd_recommendation['duration_ms']}")
+                    st.write(f"**Duration**: {tfd_duration}")
                     st.write(f"**Description**: {tfd_recommendation['description']}")
                     st.write(f"**Link**: https://open.spotify.com/episode/{tfd_result}")
