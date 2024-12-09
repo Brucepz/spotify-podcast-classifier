@@ -7,10 +7,78 @@ from wordcloud import WordCloud
 from configparser import ConfigParser  # 替代 SafeConfigParser
 import matplotlib.pyplot as plt
 import base64
+import pandas as pd
+import pickle
+import numpy as np
+import re
+from sklearn.metrics.pairwise import cosine_similarity
+# Load SpaCy model
+nlp = spacy.load("en_core_web_sm")
+
+# Load pre-trained models and vectorizers
+with open("tfidf_vectorizer.pkl", "rb") as f:
+    tfidf_vectorizer = pickle.load(f)
+
+with open("lda_vectorizer.pkl", "rb") as f:
+    lda_vectorizer = pickle.load(f)
+
+with open("lda_model.pkl", "rb") as f:
+    lda = pickle.load(f)
+
+# Load the preprocessed dataset
+df = pd.read_csv("Results.csv")
+tfidf_matrix = np.array([list(map(float, row.split(','))) for row in df['TFIDF_Matrix']])
+lda_distribution = np.array([list(map(float, row.split(','))) for row in df['LDA_Distribution']])
+
 
 # Spotify API Configuration
 CLIENT_ID = "cdbe1048ac9243c09caa8d7a369b929d"
 CLIENT_SECRET = "d0d510e0bfc54ebfa2bd084dc0c59e26"
+
+# Function to clean and tokenize descriptions
+def clean_and_tokenize(description):
+    def clean_text(text):
+        text = text.lower()
+        text = re.sub(r'http\S+|www\.\S+', '', text)  # Remove URLs
+        text = re.sub(r'\b(visit|podcast|com|episode)\b', '', text)  # Remove specific words
+        text = re.sub(r'[\W_]+', ' ', text)  # Remove special characters
+        text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
+        return text
+
+    def tokenize(text):
+        doc = nlp(text)
+        return ' '.join([token.lemma_ for token in doc if not token.is_stop and token.is_alpha])
+
+    return tokenize(clean_text(description))
+
+# Function to recommend podcasts
+def recommend_podcast(description, tfidf_matrix, lda_distribution, df):
+    # Clean and tokenize input description
+    processed_desc = clean_and_tokenize(description)
+
+    # TF-IDF feature computation
+    tfidf_vector = tfidf_vectorizer.transform([processed_desc]).toarray()
+
+    # LDA feature computation
+    lda_bow = lda_vectorizer.transform([processed_desc])
+    lda_vector = lda.transform(lda_bow)
+
+    # Similarity computation
+    tfidf_similarities = cosine_similarity(tfidf_vector, tfidf_matrix).flatten()
+    lda_similarities = cosine_similarity(lda_vector, lda_distribution).flatten()
+
+    # Find the most similar podcast indices
+    tfidf_most_similar_index = tfidf_similarities.argmax()
+    lda_most_similar_index = lda_similarities.argmax()
+
+    # Retrieve the recommended podcast IDs
+    tfidf_recommendation = df.iloc[tfidf_most_similar_index]["Episode_ID"]
+    lda_recommendation = df.iloc[lda_most_similar_index]["Episode_ID"]
+
+    return {
+        "TF-IDF Recommendation": tfidf_recommendation,
+        "LDA Recommendation": lda_recommendation
+    }
 
 # Function to get Spotify Access Token
 def get_spotify_token():
@@ -26,7 +94,6 @@ def get_spotify_token():
     else:
         return None
 
-# Function to search for podcasts
 def search_podcasts(podcast_name, token):
     url = "https://api.spotify.com/v1/search"
     headers = {"Authorization": f"Bearer {token}"}
@@ -40,7 +107,6 @@ def search_podcasts(podcast_name, token):
         ]
     return []
 
-# Function to get episodes of a podcast
 def get_episodes(show_id, token):
     url = f"https://api.spotify.com/v1/shows/{show_id}/episodes"
     headers = {"Authorization": f"Bearer {token}"}
@@ -48,22 +114,20 @@ def get_episodes(show_id, token):
     response = requests.get(url, headers=headers, params=params)
     return response.json().get("items", [])
 
-# Function to perform LDA topic modeling and generate a word cloud
-def lda_topic_modeling(text):
-    nlp = spacy.load("en_core_web_sm")
-    doc = nlp(text)
-    cleaned_tokens = [token.lemma_ for token in doc if not token.is_stop and token.is_alpha]
-    cleaned_text = " ".join(cleaned_tokens)
+# Streamlit app
 
-    vectorizer = CountVectorizer(max_features=5000, stop_words="english")
-    X_bow = vectorizer.fit_transform([cleaned_text])
 
-    lda = LatentDirichletAllocation(n_components=1, random_state=42)
-    lda.fit(X_bow)
+def get_episode_details(episode_id, token):    #TODO
+    url = f"https://api.spotify.com/v1/episodes/{episode_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        st.error(f"Failed to fetch episode details. Status Code: {response.status_code}")
+        return None
 
-    # Word Cloud
-    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(cleaned_text)
-    return wordcloud, vectorizer.get_feature_names_out()
+
 
 # Streamlit App Interface
 # Layout for inputs and outputs
@@ -82,32 +146,28 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+ 
+def find_similar_podcast_lda(lda_result, token):  #TODO
+    """
+    根据 LDA 推荐的 episode ID 获取相应的 episode 信息。
 
-def find_similar_podcast_lda(lda_result, token):
+    :param lda_result: 推荐的 episode ID（字符串）
+    :param token: Spotify API 的访问令牌
+    :return: 包含推荐 episode 详细信息的字典
     """
-    根据 LDA 的分析结果，找到最相似的 Podcast
-    示例实现：返回模拟数据
-    """
-    return {
-        "name": "LDA Recommended Podcast",
-        "publisher": "LDA Example Publisher",
-        "description": "This is a description of the podcast recommended by LDA.",
-        "release_date": "2024-12-01",
-        "duration": "30 minutes and 15 seconds"
-    }
+    return get_episode_details(lda_result, token)
+
 
 def find_similar_podcast_tfd(tfd_result, token):
     """
-    根据 TFD 的分析结果，找到最相似的 Podcast
-    示例实现：返回模拟数据
+    根据 TF-IDF 推荐的 episode ID 获取相应的 episode 信息。
+
+    :param tfd_result: 推荐的 episode ID（字符串）
+    :param token: Spotify API 的访问令牌
+    :return: 包含推荐 episode 详细信息的字典
     """
-    return {
-        "name": "TFD Recommended Podcast",
-        "publisher": "TFD Example Publisher",
-        "description": "This is a description of the podcast recommended by TFD.",
-        "release_date": "2024-11-30",
-        "duration": "25 minutes and 40 seconds"
-    }
+    return get_episode_details(tfd_result, token)
+
 
 with st.container():
     col1, col2 = st.columns([1, 6])  # 调整列比例
@@ -156,36 +216,42 @@ with st.container():
                 release_date = episode['release_date']
                 total_duration_seconds = episode['duration_ms'] // 1000  # Convert milliseconds to seconds
 
+                # 调用推荐函数
+                recommendations = recommend_podcast(description, tfidf_matrix, lda_distribution, df)   #TODO
+
                 # Convert duration to minutes and seconds
                 minutes = total_duration_seconds // 60
                 seconds = total_duration_seconds % 60
                 duration = f"{minutes} minutes and {seconds} seconds"
 
                 # 示例 LDA 和 TFD 分析结果
-                lda_result = "LDA Analysis Result"
-                tfd_result = "TFD Analysis Result"
+                lda_result = recommendations['LDA Recommendation']    #TODO
+                tfd_result = recommendations['TF-IDF Recommendation']
 
                 # 分别推荐最相似的 Podcast
-                lda_recommendation = find_similar_podcast_lda(lda_result, token)
+                lda_recommendation = find_similar_podcast_lda(lda_result, token)     
                 tfd_recommendation = find_similar_podcast_tfd(tfd_result, token)
-
+      
                 # 添加选项卡显示 LDA 和 TFD 分析
                 tabs = st.tabs(["LDA Analysis", "TFD Analysis"])
 
                 with tabs[0]:
                     st.header("LDA Analysis")
                     st.write("LDA analysis results will be displayed here.")
-                    st.write(f"**Analyzed Podcast**: {name}")
+                    st.write(f"**Analyzed Episode**: {name}")
                     st.write(f"**Duration**: {duration}")
+                    
                     st.write(f"**Description**: {description}")
+                    #能否加上podcast name？
 
                     # 推荐 Podcast (LDA)
                     st.subheader("Recommended Podcast by LDA")
                     st.write(f"**Name**: {lda_recommendation['name']}")
-                    st.write(f"**Publisher**: {lda_recommendation['publisher']}")
+            #        st.write(f"**Publisher**: {lda_recommendation['publisher']}")
                     st.write(f"**Release Date**: {lda_recommendation['release_date']}")
-                    st.write(f"**Duration**: {lda_recommendation['duration']}")
+                    st.write(f"**Duration**: {lda_recommendation['duration_ms']}")  
                     st.write(f"**Description**: {lda_recommendation['description']}")
+                    st.write(f"**Link**: https://open.spotify.com/episode/{lda_result}")
 
                 with tabs[1]:
                     st.header("TFD Analysis")
@@ -197,7 +263,8 @@ with st.container():
                     # 推荐 Podcast (TFD)
                     st.subheader("Recommended Podcast by TFD")
                     st.write(f"**Name**: {tfd_recommendation['name']}")
-                    st.write(f"**Publisher**: {tfd_recommendation['publisher']}")
+                #    st.write(f"**Publisher**: {tfd_recommendation['publisher']}")
                     st.write(f"**Release Date**: {tfd_recommendation['release_date']}")
-                    st.write(f"**Duration**: {tfd_recommendation['duration']}")
+                    st.write(f"**Duration**: {tfd_recommendation['duration_ms']}")
                     st.write(f"**Description**: {tfd_recommendation['description']}")
+                    st.write(f"**Link**: https://open.spotify.com/episode/{tfd_result}")
