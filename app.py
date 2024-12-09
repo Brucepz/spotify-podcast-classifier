@@ -285,6 +285,8 @@ with st.container():
                     st.write(f"**Duration**: {lda_duration}")
                     st.write(f"**Description**: {lda_recommendation['description']}")
                     st.write(f"**Link**: https://open.spotify.com/episode/{lda_result}")
+                    ## 插入图片：
+                
                 with tabs[1]:
                     # 推荐 Podcast (TFD)
                     st.header("Recommended Podcast by TFD")
@@ -293,3 +295,5 @@ with st.container():
                     st.write(f"**Duration**: {tfd_duration}")
                     st.write(f"**Description**: {tfd_recommendation['description']}")
                     st.write(f"**Link**: https://open.spotify.com/episode/{tfd_result}")
+                    ## 插入图片：
+
