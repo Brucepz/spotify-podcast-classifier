@@ -190,10 +190,13 @@ def find_similar_podcast_tfd(tfd_result, token):
     return get_episode_details(tfd_result, token)
 
 
+
+
 with st.container():
     # 左侧输入框部分
     col1, col2 = st.columns([1, 4])  # 调整列比例
     with col1:
+        st.image("spotify_logo.png", width=150)  # 显示 Spotify logo
         # 把大标题移到输入框上方
         st.title("Spotify Podcast Recommend")
         st.write("Analyzing podcast and recommending similar content...")
@@ -274,16 +277,15 @@ with st.container():
                 st.write(f"**Description**: {description}")
 
                 # 推荐 Podcast (LDA)
-                st.header("Recommended Podcast by LDA")
-                st.write(f"**Name**: {lda_recommendation['name']}")
-                st.write(f"**Release Date**: {lda_recommendation['release_date']}")
-                st.write(f"**Duration**: {lda_duration}")
-                st.write(f"**Description**: {lda_recommendation['description']}")
-                st.write(f"**Link**: https://open.spotify.com/episode/{lda_result}")
-
-                # 添加选项卡显示 TFD 分析
-                tabs = st.tabs(["TFD Analysis"])
+                tabs = st.tabs(["LDA Analysis", "TFD Analysis"])
                 with tabs[0]:
+                    st.header("Recommended Podcast by LDA")
+                    st.write(f"**Name**: {lda_recommendation['name']}")
+                    st.write(f"**Release Date**: {lda_recommendation['release_date']}")
+                    st.write(f"**Duration**: {lda_duration}")
+                    st.write(f"**Description**: {lda_recommendation['description']}")
+                    st.write(f"**Link**: https://open.spotify.com/episode/{lda_result}")
+                with tabs[1]:
                     # 推荐 Podcast (TFD)
                     st.header("Recommended Podcast by TFD")
                     st.write(f"**Name**: {tfd_recommendation['name']}")
