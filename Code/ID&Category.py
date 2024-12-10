@@ -30,7 +30,7 @@ def batch_search_podcasts(category_dict, limit=10, delay=1):
         print(f"Searching podcasts under category: {parent_category}")
         podcasts = search_podcasts(query=parent_category, limit=limit, parent_category=parent_category)
         all_podcasts.extend(podcasts)
-        # 添加延迟，防止超出请求限制
+       
         time.sleep(delay)  # 设置延迟
     return all_podcasts
 
