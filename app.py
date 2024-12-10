@@ -365,7 +365,7 @@ def render_home_page():
                     st.write(f"**Description**: {tfd_recommendation['description']}")
                     st.write(f"**Link**:https://open.spotify.com/episode/{tfd_result}")
                     wordcloud_path = f"Image/{tdf_topic}.png"
-                    st.subheader("Word Cloud for TF-IDF Topic")
+                    st.subheader("Word Cloud for LDA Topic")
                     st.image(wordcloud_path, use_container_width=True)
                 with col_tfd_image:
                     tfd_images = tfd_recommendation.get("images", [])
