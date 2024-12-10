@@ -19,7 +19,7 @@ from spacy.cli import download
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    # 如果模型不存在，则下载并加载
+  
     download("en_core_web_sm")
     nlp = spacy.load("en_core_web_sm")
 
